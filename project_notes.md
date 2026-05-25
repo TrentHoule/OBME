@@ -30,12 +30,19 @@ I am planning to use a price time priority algorithm, or FIFO. This means that o
 
 This was created after I had made significant progress in the orders, orderbook, trades, and matching engine. It is not a complete list of tasks.
 
-- [ ] cancel order function
-- [ ] match order function
+- [x] cancel order function
+- [x] match order function
 - [x] can match function
 - [x] fix comparator for bid/ask heaps
-- [ ] finish trades struct
-- [ ] get next order function
+- [x] finish trades struct
+- [x] get next order function
+- [ ] add different types of orders
+- [ ] add modifyOrder() function
+- [ ] level 2 data available
+- [ ] level 3 data available  
+- [ ] get testing data / implement data pipeline
+- [ ] do testing
+- [ ] benchmark/profiling and project write up 
 
 ## Evolution of the Design
 

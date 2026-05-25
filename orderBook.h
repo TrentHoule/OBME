@@ -216,34 +216,17 @@ class OrderBook {
     public:
     OrderBook() = default;
 
-    void printBids() const { 
-        std::cout << "Bids:" << std::endl;
-        printOrder(bids); 
-    }
-    void printAsks() const { 
-        std::cout << "Asks:" << std::endl;
-        printOrder(asks); 
-    }
-
-    void printOrderList() const {
-        for (auto const& [id, order] : OrderList){
-            std::cout << std::format("\nPrice: {}\nQuantity: {}\nTimestamp: {}\nMap id: {}\nInternal id: {}", 
-                order.getOrderPrice(), order.getOrderQuantity(), order.getOrderTimestamp(), id, order.getOrderId()) << std::endl;
-        }
-    }
-
-    void addOrder(Order<T> order) {
+    Trades addOrder(Order<T> order) {
         order.setOrderTimestamp(std::chrono::system_clock::now());
         Id id = ++currentId;
         Side side = order.getOrderSide();
-        Price price = order.getOrderPrice();
         order.setOrderId(id);
-
+        
         Trades trades = matchOrder(order);
         // for (auto &trade : trades) {
         //     trade.Trade<T>::printTrade();
         // }
-
+        
         if (!order.isFilled()) {
             auto orderPtr = std::make_shared<Order<T>>(order);
             OrderList.emplace(id, orderPtr);
@@ -256,10 +239,27 @@ class OrderBook {
                 std::push_heap(asks.begin(), asks.end(), OrderComparator<T, Side::Ask>());
             }
         }
+        return trades;
     }
-
+    
     void cancelOrder(Id id) {
         OrderList.at(id)->cancelOrder();
+    }
+
+    void printBids() const { 
+        std::cout << "Bids:" << std::endl;
+        printOrder(bids); 
+    }
+    void printAsks() const { 
+        std::cout << "Asks:" << std::endl;
+        printOrder(asks); 
+    }
+
+    void printOrderList() const {
+        for (auto const& [id, order] : OrderList){
+            std::cout << std::format("\nPrice: {}\nQuantity: {}\nTimestamp: {}\nMap id: {}\nInternal id: {}", 
+                order->getOrderPrice(), order->getOrderQuantity(), order->getOrderTimestamp(), id, order->getOrderId()) << std::endl;
+        }
     }
 };
 
