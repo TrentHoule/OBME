@@ -22,7 +22,7 @@ int main() {
         QQQ_OB.addOrder(OrderType::goodTillCanceled, Side::Bid, 1000 + (100 * (i % 3)), 5 + i);
         QQQ_OB.addOrder(OrderType::goodTillCanceled, Side::Ask, 1000 + (100 * (i % 7)), 5 + i);
     }
-    QQQ_OB.cancelOrder(26);
+    // QQQ_OB.cancelOrder(26);
 
     
     std::cout << std::endl;

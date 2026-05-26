@@ -14,23 +14,6 @@
 #include <functional>
 #include "trade.h"
 
-template<typename T, Side S>
-struct OrderComparator {
-    constexpr bool operator()(std::shared_ptr<Order<T>> const &a, std::shared_ptr<Order<T>> const &b) const {
-        // First compare by price, if price is the same fall back to id
-        if (a->getOrderPrice() != b->getOrderPrice()){
-            // If it is a bid, we want to check if the price is greater (ie who is willing to pay the most)
-            if constexpr (S == Side::Bid) {
-                return a->getOrderPrice() < b->getOrderPrice();
-            } else {
-                return a->getOrderPrice() > b->getOrderPrice();
-            }
-        } else {
-            return a->getOrderId() > b->getOrderId();
-        }
-    }
-};
-
 /*
 This code was not working, and the only reason I can figure out why it might not be is due to apple c++ compilation differences. I'm leaving it in just to show that I tried to create a Order<T> formatter.
 */
@@ -114,16 +97,33 @@ class OrderBook {
     private:
     std::vector<std::shared_ptr<Order<T>>> bids;
     std::vector<std::shared_ptr<Order<T>>> asks;
-    std::unordered_map<Id, std::shared_ptr<Order<T>>> OrderList;
+    std::unordered_map<Id, std::shared_ptr<Order<T>>> orderList;
     std::vector<Trades> tradeHistory;
     Id currentId = 0;
 
+    template<Side S>
+    struct OrderComparator {
+        constexpr bool operator()(std::shared_ptr<Order<T>> const &a, std::shared_ptr<Order<T>> const &b) const {
+            // First compare by price, if price is the same fall back to id
+            if (a->getOrderPrice() != b->getOrderPrice()){
+                // If it is a bid, we want to check if the price is greater (ie who is willing to pay the most)
+                if constexpr (S == Side::Bid) {
+                    return a->getOrderPrice() < b->getOrderPrice();
+                } else {
+                    return a->getOrderPrice() > b->getOrderPrice();
+                }
+            } else {
+                return a->getOrderId() > b->getOrderId();
+            }
+        }
+    };
+
     void popHeap(Side side) {
         if (side == Side::Bid) {
-            std::pop_heap(bids.begin(), bids.end(), OrderComparator<T, Side::Bid>());
+            std::pop_heap(bids.begin(), bids.end(), OrderComparator<Side::Bid>());
             bids.pop_back();
         } else {
-            std::pop_heap(asks.begin(), asks.end(), OrderComparator<T, Side::Ask>());
+            std::pop_heap(asks.begin(), asks.end(), OrderComparator<Side::Ask>());
             asks.pop_back();
         }
     }
@@ -136,10 +136,10 @@ class OrderBook {
         }
 
         std::shared_ptr<Order<T>> &nextOrder = vec.at(0);
-        // While we don't have an active order, delete this one from OrderList and the heap, and get the next order
+        // While we don't have an active order, delete this one from orderList and the heap, and get the next order
         while (!vec.empty() && (!nextOrder->isActive() || nextOrder->isFilled())) {
             Id id = nextOrder->getOrderId();
-            OrderList.erase(id);
+            orderList.erase(id);
             popHeap(side);
 
             // no more active orders
@@ -192,7 +192,7 @@ class OrderBook {
             
             // if the order we matched with is empty, remove it from the heap & orderList
             if (matchingOrder.getOrderQuantity() == 0) {
-                OrderList.erase(matchingOrder.getOrderId());
+                orderList.erase(matchingOrder.getOrderId());
                 popHeap(oppSide);
             }
         }
@@ -221,14 +221,14 @@ class OrderBook {
         // If the order is not completely filled after matching, add it to the orderBook
         if (!order.isFilled()) {
             auto orderPtr = std::make_shared<Order<T>>(order);
-            OrderList.emplace(id, orderPtr);
+            orderList.emplace(id, orderPtr);
             // Add the order to bids/asks and maintain the heaps
             if (side == Side::Bid) {
                 bids.push_back(orderPtr);
-                std::push_heap(bids.begin(), bids.end(), OrderComparator<T, Side::Bid>());
+                std::push_heap(bids.begin(), bids.end(), OrderComparator<Side::Bid>());
             } else {
                 asks.push_back(orderPtr);
-                std::push_heap(asks.begin(), asks.end(), OrderComparator<T, Side::Ask>());
+                std::push_heap(asks.begin(), asks.end(), OrderComparator<Side::Ask>());
             }
         }
         tradeHistory.push_back(trades);
@@ -250,13 +250,13 @@ class OrderBook {
         if (side == Side::Bid) {
             std::sort(sorted->begin(), sorted->end(), 
                 [](auto const &a, auto const &b){
-                    return OrderComparator<T, Side::Bid>()(b, a);
+                    return OrderComparator<Side::Bid>()(b, a);
                 }
             );
         } else {
             std::sort(sorted->begin(), sorted->end(), 
                 [](auto const &a, auto const &b){
-                    return OrderComparator<T, Side::Ask>()(b, a);
+                    return OrderComparator<Side::Ask>()(b, a);
                 }
             );
         }
@@ -279,8 +279,8 @@ class OrderBook {
 
     // Gets the necessary info from the original order, and then cancels the old order and creates a new one. 
     void modifyOrder(Id id, Price newPrice, Quantity newQuant) {
-        auto orderLoc = OrderList.find(id);
-        if (orderLoc == OrderList.end()) {
+        auto orderLoc = orderList.find(id);
+        if (orderLoc == orderList.end()) {
             throw std::logic_error("Cannot modify non-existing order");
         }
         Order<T> &order = *(orderLoc->second);
@@ -294,7 +294,7 @@ class OrderBook {
     
     // Marks an order as canceled, so that when it is visited by matchOrder() it will be removed (lazy deletion)
     void cancelOrder(Id id) {
-        OrderList.at(id)->cancelOrder();
+        orderList.at(id)->cancelOrder();
     }
 
     OrderBookView<T> bidsView() const { return buildOBView(Side::Bid); }
