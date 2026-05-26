@@ -228,7 +228,7 @@ class OrderBook {
             }
         }
         tradeHistory.push_back(trades);
-        return Id;
+        return id;
     }
 
     public:
@@ -237,7 +237,8 @@ class OrderBook {
     // Helper function for _addOrder(), creates an order and then calls _addOrder on it
     Id addOrder(OrderType type, Side side, Price price, T quantity) {
         Order<T> order(type, side, price, quantity);
-        _addOrder(order);
+        Id id = _addOrder(order);
+        return id;
     }
 
     // Gets the necessary info from the original order, and then cancels the old order and creates a new one. 

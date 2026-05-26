@@ -38,7 +38,8 @@ This was created after I had made significant progress in the orders, orderbook,
 - [x] finish trades struct
 - [x] get next order function
 - [x] add modifyOrder() function
-- [ ] change addOrder() to take in args and construct the order, rather than requiring a new order
+- [x] change addOrder() to take in args and construct the order, rather than requiring a new order
+- [ ] fix main.c to use the new addOrder() syntax
 - [ ] write unit tests
 - [ ] level 1 data available
 - [ ] level 2 data available
