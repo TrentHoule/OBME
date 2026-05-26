@@ -9,92 +9,14 @@
 #include <chrono>
 #include <format>
 #include <unordered_map>
-
-using Price = uint32_t; 
-using Id = uint64_t;
-using Quantity = uint32_t;
-using TS = std::chrono::system_clock::time_point;
-
-enum class OrderType {goodTillCanceled};
-enum class Side {Bid, Ask};
-
-
-template<typename T>
-class Order {
-    public:
-    Order(OrderType type, Side side, Price price, T quantity) : 
-        type{type},
-        side{side},
-        price{price},
-        quantity{quantity},
-        id{0},
-        status{true} {}
-
-
-    uint64_t getOrderId() const { return id; }
-    OrderType getOrderType() const { return type; }
-    T getOrderQuantity() const { return quantity; }
-    Side getOrderSide() const { return side; }
-    Price getOrderPrice() const { return price; }
-    TS getOrderTimestamp() const {return timestamp; }
-    bool isActive() const { return status; }
-
-    bool isFilled() const {
-        return quantity == 0;
-    }
-
-    void cancelOrder() {
-        status = false;
-    }
-
-    void setOrderTimestamp(TS ts) {
-        timestamp = ts;
-    }
-
-    void setOrderId(Id newId) {
-        id = newId;
-    }
-
-    void fillOrder(T amount) {
-        if (amount > quantity) {
-            throw std::logic_error(std::format("Cannot fill with more than remaining quantity"));
-        }
-        quantity -= amount;
-    }
-
-    bool operator==(const Order<T> &other) const {
-        return id == other.getOrderId();
-    }
-    
-    private: 
-    OrderType type;
-    Side side;
-    Price price; // prices are stored in cents, so that we can use intergers and it makes math more convenient. 
-    T quantity; // Some exchanges have fractional shares, but I am not going to handle that (yet)
-    Id id; 
-    TS timestamp;
-    bool status;
-    
-};
-
-template<typename T>
-struct Trade {
-    Price price;
-    T amount;
-    Order<T> bidSide;
-    Order<T> askSide;
-
-    void printTrade(){
-        std::cout << std::format("Trade info:\nPrice: {} - Shares: {}", price, amount) << std::endl;
-    }
-};
-
-using Trades = std::vector<Trade<Quantity>>;
-
+#include <memory>
+#include <optional>
+#include <functional>
+#include "trade.h"
 
 template<typename T, Side S>
 struct OrderComparator {
-    bool operator()(std::shared_ptr<Order<T>> const &a, std::shared_ptr<Order<T>> const &b) const {
+    constexpr bool operator()(std::shared_ptr<Order<T>> const &a, std::shared_ptr<Order<T>> const &b) const {
         // First compare by price, if price is the same fall back to id
         if (a->getOrderPrice() != b->getOrderPrice()){
             // If it is a bid, we want to check if the price is greater (ie who is willing to pay the most)
@@ -109,6 +31,83 @@ struct OrderComparator {
     }
 };
 
+/*
+This code was not working, and the only reason I can figure out why it might not be is due to apple c++ compilation differences. I'm leaving it in just to show that I tried to create a Order<T> formatter.
+*/
+
+// namespace std {
+//     template <typename T>
+//     struct std::formatter<Order<T>> {
+//         constexpr auto parse(std::format_parse_context& ctx) { return ctx.begin(); }
+        
+//         auto format(const Order<T>& o, std::format_context& ctx) const {
+//             return std::format_to(ctx.out(),
+//                 "Order [id={}, side={}, price={}, qty={}]",
+//                 o.getOrderId(),
+//                 o.getOrderSide() == Side::Bid ? "Bid" : "Ask",
+//                 o.getOrderPrice(),
+//                 o.getOrderQuantity()
+//             );
+//         }
+//     };
+// }
+
+// Inspired by lecture 3, section Iterators - Overkill for now, but simplifies logic that I may want to use in the future for this project so I wanted to include it 
+template<typename T>
+class OrderBookIterator{
+    public:
+    using value_type        = Order<T>;
+    using reference         = const Order<T>&;
+    using pointer           = const Order<T>*;
+    using difference_type   = std::ptrdiff_t;
+    using iterator_category = std::forward_iterator_tag;
+
+    OrderBookIterator(std::shared_ptr<std::vector<std::shared_ptr<Order<T>>>> sorted, size_t idx) : 
+        sortedOrders(std::move(sorted)), 
+        index(idx) {};
+    
+    reference operator*() const {
+        return *(*sortedOrders)[index];
+    }
+    pointer operator->() const {
+        return (*sortedOrders)[index].get();
+    }
+    OrderBookIterator& operator++() {
+        ++index;
+        return *this;
+    }
+    OrderBookIterator operator++(int) {
+        OrderBookIterator tmp = *this;
+        ++(*this);
+        return tmp;
+    }
+    bool operator==(const OrderBookIterator& other) const {
+        return index == other.index && sortedOrders == other.sortedOrders;
+    }
+    // I don't need this with c++20 because the compiler automatically generates it from operator==
+    // but I'm leaving it in for now.
+    bool operator!=(const OrderBookIterator& other) const {
+        return !(*this == other);
+    }
+
+    private:
+    std::shared_ptr<std::vector<std::shared_ptr<Order<T>>>> sortedOrders;
+    size_t index;
+};
+
+template<typename T>
+struct OrderBookView {
+    std::shared_ptr<std::vector<std::shared_ptr<Order<T>>>> sortedOrders;
+
+    OrderBookIterator<T> begin() const {
+        return OrderBookIterator<T>(sortedOrders, 0);
+    }
+
+    OrderBookIterator<T> end() const {
+        return OrderBookIterator<T>(sortedOrders, sortedOrders->size());
+    }
+};
+
 template<typename T>
 class OrderBook {
 
@@ -119,6 +118,16 @@ class OrderBook {
     std::vector<Trades> tradeHistory;
     Id currentId = 0;
 
+    void popHeap(Side side) {
+        if (side == Side::Bid) {
+            std::pop_heap(bids.begin(), bids.end(), OrderComparator<T, Side::Bid>());
+            bids.pop_back();
+        } else {
+            std::pop_heap(asks.begin(), asks.end(), OrderComparator<T, Side::Ask>());
+            asks.pop_back();
+        }
+    }
+
     std::optional<std::reference_wrapper<Order<T>>> getNextOrder(Side side) {
         auto& vec = (side == Side::Bid ? bids : asks);
         // grab the next order from the heap
@@ -128,15 +137,10 @@ class OrderBook {
 
         std::shared_ptr<Order<T>> &nextOrder = vec.at(0);
         // While we don't have an active order, delete this one from OrderList and the heap, and get the next order
-        while (!vec.empty() && !nextOrder->isActive()) {
+        while (!vec.empty() && (!nextOrder->isActive() || nextOrder->isFilled())) {
             Id id = nextOrder->getOrderId();
             OrderList.erase(id);
-            if (side == Side::Bid) {
-                std::pop_heap(vec.begin(), vec.end(), OrderComparator<T, Side::Bid>());
-            } else {
-                std::pop_heap(vec.begin(), vec.end(), OrderComparator<T, Side::Ask>());
-            }
-            vec.pop_back();
+            popHeap(side);
 
             // no more active orders
             if (vec.empty()) {
@@ -164,45 +168,40 @@ class OrderBook {
             if (!nextOrder.has_value()){ break; }
             Order<T> &matchingOrder = nextOrder->get();
 
-            bool priceMatches = (side == Side::Bid)
-            ? price >= matchingOrder.getOrderPrice()
-            : price <= matchingOrder.getOrderPrice();
+            Price tradePrice = matchingOrder.getOrderPrice();
 
-            // The price doesnt match, just add it to the book
+            bool priceMatches = (side == Side::Bid)
+            ? price >= tradePrice
+            : price <= tradePrice;
+
+            // Break if there is no matching price
             if (!priceMatches) { break; }
 
-            std::cout << std::format("matching order {} with {}", order.getOrderId(), matchingOrder.getOrderId()) << std::endl;
             // subtract the quantity from both orders
             Quantity quantity = (order.getOrderQuantity() < matchingOrder.getOrderQuantity() ? order.getOrderQuantity() : matchingOrder.getOrderQuantity());
-            order.fillOrder(quantity);
-            matchingOrder.fillOrder(quantity);
-
+            
             // add the trade to our trades
             if (side == Side::Bid) {
-                trades.push_back(Trade<Quantity>(price, quantity, order, matchingOrder));
+                trades.push_back(Trade<Quantity>(tradePrice, quantity, order, matchingOrder));
             } else {
-                trades.push_back(Trade<Quantity>(price, quantity, matchingOrder, order));
+                trades.push_back(Trade<Quantity>(tradePrice, quantity, matchingOrder, order));
             }
+
+            order.fillOrder(quantity);
+            matchingOrder.fillOrder(quantity);
             
-            // if the order we matched with is not empty, remove it from the heap & orderList
+            // if the order we matched with is empty, remove it from the heap & orderList
             if (matchingOrder.getOrderQuantity() == 0) {
                 OrderList.erase(matchingOrder.getOrderId());
-                if (oppSide == Side::Bid) {
-                    std::pop_heap(bids.begin(), bids.end(), OrderComparator<T, Side::Bid>());
-                    bids.pop_back();
-                } else {
-                    std::pop_heap(asks.begin(), asks.end(), OrderComparator<T, Side::Ask>());
-                    asks.pop_back();
-                }
+                popHeap(oppSide);
             }
         }
         return trades;
     }
 
-    void printOrder(const std::vector<std::shared_ptr<Order<T>>> &orders) const { 
+    void printOrders(const OrderBookView<T> &orders) const {
         for (const auto &order : orders){
-            std::cout << std::format("Price: {} - Quantity: {} - Timestamp: {} - Internal id: {}", 
-                order->getOrderPrice(), order->getOrderQuantity(), order->getOrderTimestamp(), order->getOrderId()) << std::endl;
+            std::cout << order << "\n";   
         }
     }
 
@@ -213,6 +212,11 @@ class OrderBook {
         order.setOrderId(id);
         
         Trades trades = matchOrder(order);
+
+        // This is just for testing/observation
+        for (auto &trade : trades) {
+            std::cout << trade << std::endl;
+        }
         
         // If the order is not completely filled after matching, add it to the orderBook
         if (!order.isFilled()) {
@@ -231,24 +235,61 @@ class OrderBook {
         return id;
     }
 
+    OrderBookView<T> buildOBView(Side side) const {
+        auto sorted = std::make_shared<std::vector<std::shared_ptr<Order<T>>>>();
+
+        const auto &source = (side == Side::Bid) ? bids : asks;
+        for (const auto& order : source) {
+            // Check that the order is active and not filled before adding it to our view. Lazy deletion means we may have canceled or filled orders in the heaps.
+            if (order->isActive() && !order->isFilled()) {
+                sorted->push_back(order);
+            }
+        }
+
+        // Sort using the proper comparator, resued from the heap comparator but using a lambda to flip the arguemnts
+        if (side == Side::Bid) {
+            std::sort(sorted->begin(), sorted->end(), 
+                [](auto const &a, auto const &b){
+                    return OrderComparator<T, Side::Bid>()(b, a);
+                }
+            );
+        } else {
+            std::sort(sorted->begin(), sorted->end(), 
+                [](auto const &a, auto const &b){
+                    return OrderComparator<T, Side::Ask>()(b, a);
+                }
+            );
+        }
+
+        return OrderBookView<T>{sorted};
+    }
+
     public:
     OrderBook() = default;
 
     // Helper function for _addOrder(), creates an order and then calls _addOrder on it
     Id addOrder(OrderType type, Side side, Price price, T quantity) {
+        if (price == 0 || quantity == 0 ){
+            throw std::logic_error("Cannot add order with price or quantity less than or equal to 0");
+        }
         Order<T> order(type, side, price, quantity);
         Id id = _addOrder(order);
         return id;
     }
 
     // Gets the necessary info from the original order, and then cancels the old order and creates a new one. 
-    void modifyOrder(Id id, Quantity newQuant, Price newPrice) {
-        Order<T> &order = OrderList.at(id);
+    void modifyOrder(Id id, Price newPrice, Quantity newQuant) {
+        auto orderLoc = OrderList.find(id);
+        if (orderLoc == OrderList.end()) {
+            throw std::logic_error("Cannot modify non-existing order");
+        }
+        Order<T> &order = *(orderLoc->second);
+        if (!order.isActive()) { return; }
         OrderType type = order.getOrderType();
         Side side = order.getOrderSide();
         cancelOrder(id);
         Order<T> nOrder(type, side, newPrice, newQuant);
-        addOrder(nOrder);
+        _addOrder(nOrder);
     }
     
     // Marks an order as canceled, so that when it is visited by matchOrder() it will be removed (lazy deletion)
@@ -256,17 +297,21 @@ class OrderBook {
         OrderList.at(id)->cancelOrder();
     }
 
-    /*
-    I would like to change both of these so that we can properly display level 1 and 2 data. 
-    */
-    void printBids() const { 
+    OrderBookView<T> bidsView() const { return buildOBView(Side::Bid); }
+    OrderBookView<T> asksView() const { return buildOBView(Side::Ask); }
+
+    // These now rely on OrderBookView
+    void printBids() const {
         std::cout << "Bids:" << std::endl;
-        printOrder(bids); 
+        printOrders(bidsView());
     }
-    void printAsks() const { 
+
+    void printAsks() const {
         std::cout << "Asks:" << std::endl;
-        printOrder(asks); 
+        printOrders(asksView());
     }
+
+    void printTradeHistory() {};
 
 };
 

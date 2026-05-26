@@ -39,15 +39,17 @@ This was created after I had made significant progress in the orders, orderbook,
 - [x] get next order function
 - [x] add modifyOrder() function
 - [x] change addOrder() to take in args and construct the order, rather than requiring a new order
-- [ ] fix main.c to use the new addOrder() syntax
-- [ ] write unit tests
-- [ ] level 1 data available
+- [x] fix main.c to use the new addOrder() syntax
+- [x] level 1 data available
 - [ ] level 2 data available
-- [ ] get testing data / implement data pipeline
+- [x] get testing data
+- [ ] implement data pipeline
+- [ ] write unit tests
 - [ ] do testing
 - [ ] benchmark/profiling and project write up 
 - [ ] add different types of orders
 - [ ] level 3 data available  / Maybe not, we will see
+- [x] add makefile 
 
 ## Evolution of the Design
 
@@ -70,9 +72,14 @@ I will document changes here.
 13. Changed addOrder() return type from Trades to Id, now it returns the id of the added order (so users can get that info and then modify/cancel orders). Trades completed in addOrder() are added to tradeHistory.
 14. As I was working on modify order, I decided the best way to handle this was to just cancel the existing order and create a new one. This avoids a lot of the complex logic related to modifying the heap to deal with a price change, matching the order if it can now match, etc. 
 15. Finished modifyOrder(), now I'm thinking I should change addOrder() to only require the args to construct an order, rather than take in a constructed order. I might make a helper function that is exposed to users create an order with their order info and then that helper passes addOrder() a constructed order
+16. Trying to decide what behavior modify order should exhibit when modifying a canceled order. I am going with "throw a logic error" because you shouldn't be able to modify a canceled order, but it would also make sense to just let nothing happen.
+17. Added a Makefile to improve ease of compiling. I've only been working with a main.cpp file, but soon I will have other files so this is preventative. 
+18. Wanted to add a formatter for Orders, but due to libc++ limitations this was not working. I instead created an operator<< overload for orders and trades.
+19. Adding orderBook iterator to assist with providing level data
+20. After creading the orderbook iterator, I added the OrderBookView class as well as buildOBView() to handle the creation of an order book view for either side. This allows us to get the bids/asks as a sorted vector, copied from the heap. This also gives us easy access to level 1 data as we can see the top bid/ask by creating an orderBookView.
+21. Changed print methods to use OrderBookView 
+22. Seperated the large orderBook.h file into types.h, order.h, and orderBook.h for clarity
 
-
- 
 ## Performance and Testing
 
 
@@ -92,3 +99,5 @@ Anything on the Todo list that has not been completed is part of future work.
 5. https://gist.github.com/halfelf/db1ae032dc34278968f8bf31ee999a25
 6. https://stackoverflow.com/questions/77116565/how-to-overload-spaceship-operator-with-reversed-order
 7. https://stackoverflow.com/questions/12570981/how-to-remove-an-arbitrary-element-from-a-standard-heap-in-c
+8. https://google.github.io/googletest/primer.html
+
