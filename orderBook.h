@@ -10,7 +10,7 @@
 #include <format>
 #include <unordered_map>
 
-using Price = int32_t; 
+using Price = uint32_t; 
 using Id = uint64_t;
 using Quantity = uint32_t;
 using TS = std::chrono::system_clock::time_point;
@@ -61,14 +61,6 @@ class Order {
         }
         quantity -= amount;
     }
-
-    // Dead code from when this was used for heaps, keeping for now incase I need it for some reason
-    // auto operator<=>(const Order<T> &other) const {
-    //     if (auto cmp = price <=> other.getOrderPrice(); cmp != 0) {
-    //         return cmp;
-    //     }
-    //     return other.getOrderId() <=> id;
-    // }
 
     bool operator==(const Order<T> &other) const {
         return id == other.getOrderId();
@@ -124,6 +116,7 @@ class OrderBook {
     std::vector<std::shared_ptr<Order<T>>> bids;
     std::vector<std::shared_ptr<Order<T>>> asks;
     std::unordered_map<Id, std::shared_ptr<Order<T>>> OrderList;
+    std::vector<Trades> tradeHistory;
     Id currentId = 0;
 
     std::optional<std::reference_wrapper<Order<T>>> getNextOrder(Side side) {
@@ -134,7 +127,7 @@ class OrderBook {
         }
 
         std::shared_ptr<Order<T>> &nextOrder = vec.at(0);
-        // While we don't have an active order, delete this one from OrderList and the heap and get the next order
+        // While we don't have an active order, delete this one from OrderList and the heap, and get the next order
         while (!vec.empty() && !nextOrder->isActive()) {
             Id id = nextOrder->getOrderId();
             OrderList.erase(id);
@@ -157,11 +150,13 @@ class OrderBook {
         // To match an order we need to:
         // know that it can match √
         // get the top order to match with
+        // Repeat this process until we have no more matching orders
         Side side = order.getOrderSide();
         Side oppSide = (side == Side::Bid) ? Side::Ask : Side::Bid;
         Price price = order.getOrderPrice();
         Trades trades;
 
+        // Continue matching if there is any left over quantity, or if it cannot match then add it to the order book
         while (order.getOrderQuantity() > 0) {
 
             auto nextOrder = getNextOrder(oppSide);
@@ -189,10 +184,10 @@ class OrderBook {
                 trades.push_back(Trade<Quantity>(price, quantity, matchingOrder, order));
             }
             
+            // if the order we matched with is not empty, remove it from the heap & orderList
             if (matchingOrder.getOrderQuantity() == 0) {
                 OrderList.erase(matchingOrder.getOrderId());
-                Side mSide = matchingOrder.getOrderSide();
-                if (mSide == Side::Bid) {
+                if (oppSide == Side::Bid) {
                     std::pop_heap(bids.begin(), bids.end(), OrderComparator<T, Side::Bid>());
                     bids.pop_back();
                 } else {
@@ -200,8 +195,6 @@ class OrderBook {
                     asks.pop_back();
                 }
             }
-
-            // continue matching if there is any left over quantity, or if it cannot match then add it to the order book
         }
         return trades;
     }
@@ -213,20 +206,15 @@ class OrderBook {
         }
     }
 
-    public:
-    OrderBook() = default;
-
-    Trades addOrder(Order<T> order) {
+    Id _addOrder(Order<T> order) {
         order.setOrderTimestamp(std::chrono::system_clock::now());
         Id id = ++currentId;
         Side side = order.getOrderSide();
         order.setOrderId(id);
         
         Trades trades = matchOrder(order);
-        // for (auto &trade : trades) {
-        //     trade.Trade<T>::printTrade();
-        // }
         
+        // If the order is not completely filled after matching, add it to the orderBook
         if (!order.isFilled()) {
             auto orderPtr = std::make_shared<Order<T>>(order);
             OrderList.emplace(id, orderPtr);
@@ -239,13 +227,37 @@ class OrderBook {
                 std::push_heap(asks.begin(), asks.end(), OrderComparator<T, Side::Ask>());
             }
         }
-        return trades;
+        tradeHistory.push_back(trades);
+        return Id;
+    }
+
+    public:
+    OrderBook() = default;
+
+    // Helper function for _addOrder(), creates an order and then calls _addOrder on it
+    Id addOrder(OrderType type, Side side, Price price, T quantity) {
+        Order<T> order(type, side, price, quantity);
+        _addOrder(order);
+    }
+
+    // Gets the necessary info from the original order, and then cancels the old order and creates a new one. 
+    void modifyOrder(Id id, Quantity newQuant, Price newPrice) {
+        Order<T> &order = OrderList.at(id);
+        OrderType type = order.getOrderType();
+        Side side = order.getOrderSide();
+        cancelOrder(id);
+        Order<T> nOrder(type, side, newPrice, newQuant);
+        addOrder(nOrder);
     }
     
+    // Marks an order as canceled, so that when it is visited by matchOrder() it will be removed (lazy deletion)
     void cancelOrder(Id id) {
         OrderList.at(id)->cancelOrder();
     }
 
+    /*
+    I would like to change both of these so that we can properly display level 1 and 2 data. 
+    */
     void printBids() const { 
         std::cout << "Bids:" << std::endl;
         printOrder(bids); 
@@ -255,12 +267,6 @@ class OrderBook {
         printOrder(asks); 
     }
 
-    void printOrderList() const {
-        for (auto const& [id, order] : OrderList){
-            std::cout << std::format("\nPrice: {}\nQuantity: {}\nTimestamp: {}\nMap id: {}\nInternal id: {}", 
-                order->getOrderPrice(), order->getOrderQuantity(), order->getOrderTimestamp(), id, order->getOrderId()) << std::endl;
-        }
-    }
 };
 
 

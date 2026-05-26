@@ -3,13 +3,14 @@ I wanted to create an order book and matching engine so that I could better unde
 
 ## Process
 1) Learn about order books and matching engines
+ - I spent a lot of time reviewing different sources and understanding how order books, orders, and the matching algorithm all come together to form the complete architecture.
 2) write my findings here and start thinking about architecture
  - Most of my initial notes ended up in a physical notebook as I was reading about order books and matching engines, and I may transcribe them here later.
 
 ## System Design and Architecture
 We need objects to represent orders (bid and ask), the order book, and the order history.
 
-I am currently planning to only tackle "good till canceled" orders, although I may expand on this in the future with other types such as "fill or kill" and "immediate or cancel". I also am only dealing with integer shares at the moment, but the orders are templatized so handling fractional shares should be an obvious next step.
+I am currently planning to only tackle "good till canceled" orders, although I may expand on this in the future with other types such as "fill or kill" THIS DOESNT MAKE SENSE >>>> and "immediate or cancel". I also am only dealing with integer shares at the moment, but the orders are templatized so handling fractional shares should be an obvious next step.
 
 We start with an order book. The order book has a min_heap for ask orders, and a max_heap for bid orders. This allows us to keep track of the lowest prices users are willing to sell at, as well as the highest prices users are willing to pay. We also keep a unordered_map connecting order ids to orders.
 
@@ -36,13 +37,16 @@ This was created after I had made significant progress in the orders, orderbook,
 - [x] fix comparator for bid/ask heaps
 - [x] finish trades struct
 - [x] get next order function
-- [ ] add different types of orders
-- [ ] add modifyOrder() function
+- [x] add modifyOrder() function
+- [ ] change addOrder() to take in args and construct the order, rather than requiring a new order
+- [ ] write unit tests
+- [ ] level 1 data available
 - [ ] level 2 data available
-- [ ] level 3 data available  
 - [ ] get testing data / implement data pipeline
 - [ ] do testing
 - [ ] benchmark/profiling and project write up 
+- [ ] add different types of orders
+- [ ] level 3 data available  / Maybe not, we will see
 
 ## Evolution of the Design
 
@@ -61,13 +65,21 @@ I will document changes here.
 9. Added status field to Order, initialized to 1. Added cancelOrder() Order member method which sets status to 0, as well as isActive() which returns status. This allows us to check if orders are active or canceled. When an order is canceled we just set active to 0, and then if we ever run into that order again it is removed from the system at that time.
 10. Changed getNextOrder() to return an optional<\reference_wrapper<\Order<\T>>> so that if there is no correct next value that information propogates up instead of throwing a logic error like it did before.
 11. Removed canMatch() because it is now redundant, getNextOrder() does the error checking and we can just check for a price match in matchOrder()
+12. Added tradeHistory member var to OrderBook, so that we have a complete list of trades. 
+13. Changed addOrder() return type from Trades to Id, now it returns the id of the added order (so users can get that info and then modify/cancel orders). Trades completed in addOrder() are added to tradeHistory.
+14. As I was working on modify order, I decided the best way to handle this was to just cancel the existing order and create a new one. This avoids a lot of the complex logic related to modifying the heap to deal with a price change, matching the order if it can now match, etc. 
+15. Finished modifyOrder(), now I'm thinking I should change addOrder() to only require the args to construct an order, rather than take in a constructed order. I might make a helper function that is exposed to users create an order with their order info and then that helper passes addOrder() a constructed order
 
 
  
 ## Performance and Testing
 
 
+
+
 ## What I would change if I did it again / Future Work
+
+Anything on the Todo list that has not been completed is part of future work. 
 
 
 ## References
