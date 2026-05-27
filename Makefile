@@ -1,8 +1,10 @@
 CXX			= clang++
 CXXFLAGS	= -std=c++20 -Wall -Wextra -Wpedantic
 
-main: main.cpp orderBook.h types.h order.h trade.h
-	$(CXX) $(CXXFLAGS) main.cpp -o main
+all: runSampleData testOrderBook benchmark
+
+# main: main.cpp orderBook.h types.h order.h trade.h
+# 	$(CXX) $(CXXFLAGS) main.cpp -o main
 
 runSampleData: runSampleData.cpp orderBook.h types.h order.h trade.h
 	$(CXX) $(CXXFLAGS) runSampleData.cpp -o runSampleData
@@ -10,7 +12,10 @@ runSampleData: runSampleData.cpp orderBook.h types.h order.h trade.h
 testOrderBook: testOrderBook.cpp orderBook.h types.h order.h trade.h
 	$(CXX) $(CXXFLAGS) testOrderBook.cpp -o testOrderBook
 
-.PHONY: clean
+benchmark: benchmark.cpp orderBook.h types.h order.h trade.h
+	$(CXX) $(CXXFLAGS) -O2 benchmark.cpp -o benchmark
+
+.PHONY: clean all
 
 clean:
-	-rm -f main runSampleData testOrderBook
+	-rm -f runSampleData testOrderBook benchmark

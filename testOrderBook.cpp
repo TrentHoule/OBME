@@ -316,6 +316,20 @@ TEST(AskMatchesBestBidFirst) {
     ASSERT_EQ(nthPrice(book.bidsView(), 0), Price(100));  // 105 bid was consumed
 }
 
+TEST(ViewIsASnapshotNotALiveReference) {
+    OrderBook<Quantity> book;
+    book.addOrder(OrderType::goodTillCanceled, Side::Bid, 100, 10);
+
+    // Capture the view *before* the second order is added
+    auto snapshot = book.bidsView();
+
+    book.addOrder(OrderType::goodTillCanceled, Side::Bid, 101, 10);
+
+    // The snapshot should still only see 1 order
+    ASSERT_EQ(countOrders(snapshot), 1u);
+    // But a fresh view sees 2
+    ASSERT_EQ(countOrders(book.bidsView()), 2u);
+}
 
 // =============================================================================
 //  5. CANCEL ORDER
@@ -360,6 +374,37 @@ TEST(CancelOneOfManyOrders) {
     // The two remaining bids should be at 102 and 100 (sorted high→low)
     ASSERT_EQ(nthPrice(book.bidsView(), 0), Price(102));
     ASSERT_EQ(nthPrice(book.bidsView(), 1), Price(100));
+}
+
+TEST(LazyDeletionSkipsMultipleConsecutiveStaleBids) {
+    // Add 4 bids at different prices, cancel the top 3.
+    // The surviving bid should still be matched correctly.
+    OrderBook<Quantity> book;
+    Id id1 = book.addOrder(OrderType::goodTillCanceled, Side::Bid, 104, 10);
+    Id id2 = book.addOrder(OrderType::goodTillCanceled, Side::Bid, 103, 10);
+    Id id3 = book.addOrder(OrderType::goodTillCanceled, Side::Bid, 102, 10);
+              book.addOrder(OrderType::goodTillCanceled, Side::Bid, 101, 10); // survivor
+
+    book.cancelOrder(id1);
+    book.cancelOrder(id2);
+    book.cancelOrder(id3);
+
+    // An ask at 101 should find and match the surviving 101-bid,
+    // walking past all three stale heap entries in the process.
+    book.addOrder(OrderType::goodTillCanceled, Side::Ask, 101, 10);
+
+    ASSERT_EQ(countOrders(book.bidsView()), 0u);
+    ASSERT_EQ(countOrders(book.asksView()), 0u);
+}
+
+TEST(DoubleCancelIsNoOp) {
+    OrderBook<Quantity> book;
+    Id id = book.addOrder(OrderType::goodTillCanceled, Side::Bid, 100, 10);
+
+    book.cancelOrder(id); // first cancel
+    book.cancelOrder(id); // second cancel — should not crash or double-count
+
+    ASSERT_EQ(countOrders(book.bidsView()), 0u);
 }
 
 
@@ -434,6 +479,80 @@ TEST(ModifyPriceCanTriggerMatch) {
     ASSERT_EQ(countOrders(book.bidsView()), 0u);
 }
 
+TEST(ModifyAskOrderChangesPrice) {
+    OrderBook<Quantity> book;
+    Id id = book.addOrder(OrderType::goodTillCanceled, Side::Ask, 105, 10);
+    book.modifyOrder(id, 110, 10);
+
+    ASSERT_EQ(countOrders(book.asksView()), 1u);
+    ASSERT_EQ(nthPrice(book.asksView(), 0), Price(110));
+}
+
+TEST(ModifyAskCanTriggerMatch) {
+    // Ask at 105 won't match a bid at 100. Modify it down to 100, should match.
+    OrderBook<Quantity> book;
+    Id askId = book.addOrder(OrderType::goodTillCanceled, Side::Ask, 105, 10);
+    book.addOrder(OrderType::goodTillCanceled, Side::Bid, 100, 10);
+
+    ASSERT_EQ(countOrders(book.asksView()), 1u);
+
+    book.modifyOrder(askId, 100, 10);
+
+    ASSERT_EQ(countOrders(book.asksView()), 0u);
+    ASSERT_EQ(countOrders(book.bidsView()), 0u);
+}
+
+TEST(ModifyOrderThatImmediatelyFullyMatchesReturnsValidIdButLeavesNoResidue) {
+    OrderBook<Quantity> book;
+    // Ask at 100 waiting to be filled
+    book.addOrder(OrderType::goodTillCanceled, Side::Ask, 100, 10);
+    // Bid at 99 — doesn't cross yet
+    Id bidId = book.addOrder(OrderType::goodTillCanceled, Side::Bid, 99, 10);
+
+    // Modify the bid up to 100 — it should fully match and vanish
+    Id newId = book.modifyOrder(bidId, 100, 10);
+
+    // A valid (non-zero) ID was returned even though the order was fully consumed
+    ASSERT_TRUE(newId != Id(0));
+    // Book should be completely empty
+    ASSERT_EQ(countOrders(book.bidsView()), 0u);
+    ASSERT_EQ(countOrders(book.asksView()), 0u);
+    // The returned ID has no resting order — cancelling it is a no-op, not a throw
+    book.cancelOrder(newId); // must not crash
+}
+
+TEST(ChainedModifiesProduceCorrectFinalState) {
+    OrderBook<Quantity> book;
+    Id id  = book.addOrder(OrderType::goodTillCanceled, Side::Bid, 100, 10);
+    Id id2 = book.modifyOrder(id,  102, 20);
+    Id id3 = book.modifyOrder(id2, 104, 30);
+
+    ASSERT_EQ(countOrders(book.bidsView()), 1u);
+    ASSERT_EQ(nthPrice(book.bidsView(),    0), Price(104));
+    ASSERT_EQ(nthQuantity(book.bidsView(), 0), Quantity(30));
+
+    // The final ID should be cancellable
+    book.cancelOrder(id3);
+    ASSERT_EQ(countOrders(book.bidsView()), 0u);
+}
+
+TEST(ModifyPartiallyFilledOrderWorks) {
+    OrderBook<Quantity> book;
+
+    // Ask for 20, bid for only 5 — ask has 15 remaining, still in orderList
+    Id askId = book.addOrder(OrderType::goodTillCanceled, Side::Ask, 100, 20);
+    book.addOrder(OrderType::goodTillCanceled, Side::Bid, 100, 5);
+
+    ASSERT_EQ(nthQuantity(book.asksView(), 0), Quantity(15));
+
+    // Modify the partially-filled ask to a new price and quantity
+    Id newAskId = book.modifyOrder(askId, 102, 30);
+    ASSERT_TRUE(newAskId != Id(0));
+
+    ASSERT_EQ(countOrders(book.asksView()), 1u);
+    ASSERT_EQ(nthPrice(book.asksView(),    0), Price(102));
+    ASSERT_EQ(nthQuantity(book.asksView(), 0), Quantity(30));
+}
 
 // =============================================================================
 //  7. ITERATOR

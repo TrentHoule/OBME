@@ -10,7 +10,7 @@ I wanted to create an order book and matching engine so that I could better unde
 ## System Design and Architecture
 We need objects to represent orders (bid and ask), the order book, and the order history.
 
-I am currently planning to only tackle "good till canceled" orders, although I may expand on this in the future with other types such as "fill or kill" THIS DOESNT MAKE SENSE >>>> and "immediate or cancel". I also am only dealing with integer shares at the moment, but the orders are templatized so handling fractional shares should be an obvious next step.
+I am currently planning to only tackle "good till canceled" orders, although I may expand on this in the future with other types such as "fill or kill". I also am only dealing with integer shares at the moment, but the orders are templatized so handling fractional shares should be an obvious next step.
 
 We start with an order book. The order book has a min_heap for ask orders, and a max_heap for bid orders. This allows us to keep track of the lowest prices users are willing to sell at, as well as the highest prices users are willing to pay. We also keep a unordered_map connecting order ids to orders.
 
@@ -83,8 +83,10 @@ I will document changes here.
 22. Seperated the large orderBook.h file into types.h, order.h, and orderBook.h for clarity
 23. I finished runSampleData.cpp, which reads in from a sample data file and copies the trades/modifications/cancelations as given in the sample data. It is not completely correct as there are features implemented that I cannot copy (such as hidden limit orders that are not included in the sample data and only show up in completed trades). Its a good start, and I plan to build on this
 24. I have been doing manual testing this entire time, with a simple test file, but I went ahead and created a much larger testing file testOrderBook.cpp which covers all the main tests an orderbook should have.
+25. Added benchmark.cpp to handle running the benchmark and outputting a json file with benchmark info, as well as visualize_bench.py which creates visualizations of the benchmarks for simpler comprehension
 
 ## Performance and Testing
+
 
 
 
