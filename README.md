@@ -8,19 +8,19 @@ Running `make` will compile:
 2. testOrderBook.cpp
 3. benchmark.cpp
 
-Running `make clean` will clean up the compiled binaries
-
-1. runSampleData.cpp
+1. ./runSampleData
 
 This file processes the sample LOBSTER data and print out the state of the resulting orderbook, ie the unexecuted bids/asks. 
 
-2. testOrderBook.cpp
+2. ./testOrderBook
 
 This file runs the orderbook tests
 
-3. benchmark.cpp
+3. ./benchmark
 
 This file will run the benchmarking code, which is responsible for generating a json file that visualize_bench.py can parse and then generate multiple corresponding graphs showcasing the benchmark performance
+
+Running `make clean` will clean up the compiled binaries
 
 ## System Design and Architecture
 We need objects to represent orders (bid and ask), the order book, and the order history.
