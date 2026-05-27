@@ -217,9 +217,9 @@ class OrderBook {
         Trades trades = matchOrder(order);
 
         // This is just for testing/observation
-        for (auto &trade : trades) {
-            std::cout << trade << std::endl;
-        }
+        // for (auto &trade : trades) {
+        //     std::cout << trade << std::endl;
+        // }
         
         // If the order is not completely filled after matching, add it to the orderBook
         if (!order.isFilled()) {

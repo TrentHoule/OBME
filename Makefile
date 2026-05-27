@@ -7,7 +7,10 @@ main: main.cpp orderBook.h types.h order.h trade.h
 runSampleData: runSampleData.cpp orderBook.h types.h order.h trade.h
 	$(CXX) $(CXXFLAGS) runSampleData.cpp -o runSampleData
 
+testOrderBook: testOrderBook.cpp orderBook.h types.h order.h trade.h
+	$(CXX) $(CXXFLAGS) testOrderBook.cpp -o testOrderBook
+
 .PHONY: clean
 
 clean:
-	-rm -f main
+	-rm -f main runSampleData testOrderBook

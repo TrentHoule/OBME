@@ -43,13 +43,15 @@ This was created after I had made significant progress in the orders, orderbook,
 - [x] level 1 data available
 - [ ] level 2 data available
 - [x] get testing data
-- [ ] implement data pipeline
+- [x] implement data pipeline
 - [ ] write unit tests
 - [ ] do testing
 - [ ] benchmark/profiling and project write up 
 - [ ] add different types of orders
 - [ ] level 3 data available  / Maybe not, we will see
 - [x] add makefile 
+- [ ] create exchange.cpp
+
 
 ## Evolution of the Design
 
@@ -79,6 +81,8 @@ I will document changes here.
 20. After creading the orderbook iterator, I added the OrderBookView class as well as buildOBView() to handle the creation of an order book view for either side. This allows us to get the bids/asks as a sorted vector, copied from the heap. This also gives us easy access to level 1 data as we can see the top bid/ask by creating an orderBookView.
 21. Changed print methods to use OrderBookView 
 22. Seperated the large orderBook.h file into types.h, order.h, and orderBook.h for clarity
+23. I finished runSampleData.cpp, which reads in from a sample data file and copies the trades/modifications/cancelations as given in the sample data. It is not completely correct as there are features implemented that I cannot copy (such as hidden limit orders that are not included in the sample data and only show up in completed trades). Its a good start, and I plan to build on this
+24. I have been doing manual testing this entire time, with a simple test file, but I went ahead and created a much larger testing file testOrderBook.cpp which covers all the main tests an orderbook should have.
 
 ## Performance and Testing
 
