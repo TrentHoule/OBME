@@ -179,7 +179,7 @@ class OrderBook {
             // Break if there is no matching price
             if (!priceMatches) { break; }
 
-            // subtract the quantity from both orders
+            // Get the smaller order quantity
             Quantity quantity = (order.getOrderQuantity() < matchingOrder.getOrderQuantity() ? order.getOrderQuantity() : matchingOrder.getOrderQuantity());
             
             // add the trade to our trades
@@ -188,7 +188,8 @@ class OrderBook {
             } else {
                 trades.push_back(Trade<Quantity>(tradePrice, quantity, matchingOrder, order));
             }
-
+            
+            // subtract the quantity from both orders
             order.fillOrder(quantity);
             matchingOrder.fillOrder(quantity);
             
@@ -298,7 +299,11 @@ class OrderBook {
     
     // Marks an order as canceled, so that when it is visited by matchOrder() it will be removed (lazy deletion)
     void cancelOrder(Id id) {
-        orderList.at(id)->cancelOrder();
+        auto it = orderList.find(id);
+        if (it != orderList.end()) {
+            it->second->cancelOrder();
+        }
+        
     }
 
     OrderBookView<T> bidsView() const { return buildOBView(Side::Bid); }
@@ -315,7 +320,8 @@ class OrderBook {
         printOrders(asksView());
     }
 
-    void printTradeHistory() {};
+    // Todo - implement trade history
+    // void printTradeHistory() {};
 
 };
 
