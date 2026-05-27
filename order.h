@@ -1,3 +1,5 @@
+#ifndef ORDER_H
+#define ORDER_H
 #include "types.h"
 
 
@@ -72,3 +74,4 @@ std::ostream& operator<<(std::ostream& os, const Order<T>& o) {
         o.getOrderQuantity());
     return os;
 }
+#endif

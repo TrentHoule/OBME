@@ -12,6 +12,8 @@
 #include <memory>
 #include <optional>
 #include <functional>
+#include "types.h"
+#include "order.h"
 #include "trade.h"
 
 /*

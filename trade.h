@@ -1,4 +1,7 @@
+#ifndef TRADES_H
+#define TRADES_H
 #include "order.h"
+#include "types.h"
 
 
 template<typename T>
@@ -20,3 +23,5 @@ std::ostream& operator<<(std::ostream& os, const Trade<T>& trade) {
         trade.askSide.getOrderId());
     return os;
 }
+
+#endif
