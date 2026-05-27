@@ -280,18 +280,20 @@ class OrderBook {
     }
 
     // Gets the necessary info from the original order, and then cancels the old order and creates a new one. 
-    void modifyOrder(Id id, Price newPrice, Quantity newQuant) {
+    Id modifyOrder(Id id, Price newPrice, Quantity newQuant) {
         auto orderLoc = orderList.find(id);
         if (orderLoc == orderList.end()) {
             throw std::logic_error("Cannot modify non-existing order");
         }
         Order<T> &order = *(orderLoc->second);
-        if (!order.isActive()) { return; }
+        // Tried to edit a non active or filled order, return 0;
+        if (!order.isActive() || order.isFilled()) { return 0; }
         OrderType type = order.getOrderType();
         Side side = order.getOrderSide();
         cancelOrder(id);
         Order<T> nOrder(type, side, newPrice, newQuant);
-        _addOrder(nOrder);
+        Id nID = _addOrder(nOrder);
+        return nID;
     }
     
     // Marks an order as canceled, so that when it is visited by matchOrder() it will be removed (lazy deletion)
