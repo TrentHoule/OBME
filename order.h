@@ -2,11 +2,8 @@
 #define ORDER_H
 #include "types.h"
 
-
-
 enum class OrderType {goodTillCanceled};
 enum class Side {Bid, Ask};
-
 
 template<typename T>
 class Order {

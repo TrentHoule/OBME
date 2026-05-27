@@ -63,21 +63,11 @@ void readOrdersAndProcess(std::string filename) {
                     APPL.cancelOrder(it->second);
                 }
             }
-            // else if (std::stoi(temp[1]) == 2) {
-            //     Price price = std::stoi(temp[4]);
-            //     Quantity shares = std::stoi(temp[3]);
-            //     auto theirId = std::stoi(temp[2]);
-
-            //     std::cout << std::format("Added {}", theirId) << std::endl;
-
-            //     Id id = APPL.modifyOrder(theirId, price, shares);
-            //     idsMap.emplace(theirId, id);
-            // }
         }
 
-        // APPL.printAsks();
-        // std::cout << std::endl;
-        // APPL.printBids();
+        APPL.printAsks();
+        std::cout << std::endl;
+        APPL.printBids();
 
         file.close();
     }

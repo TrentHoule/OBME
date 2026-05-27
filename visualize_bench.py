@@ -161,16 +161,18 @@ def plot_histogram(ax, raw_ms: np.ndarray, stats: dict):
 
     # Statistical marker lines
     markers = [
-        ("mean",   stats["mean_ms"],   C["mean"],   "--", "Mean"),
-        ("median", stats["median_ms"], C["median"], "-",  "Median"),
+        ("mean",   stats["mean_ms"],   C["mean"],   "--", ""),
+        ("median", stats["median_ms"], C["median"], "-",  ""),
         ("p95",    stats["p95_ms"],    C["p95"],    ":",  "p95"),
         ("p99",    stats["p99_ms"],    C["p99"],    ":",  "p99"),
     ]
     y_top = counts.max()
+    i = 0.05
     for key, val, colour, ls, label in markers:
         ax.axvline(val, color=colour, linestyle=ls, linewidth=1.8, zorder=4)
-        ax.text(val, y_top * 0.97, f" {label}\n {val:.3f}ms",
+        ax.text(val, y_top * (0.97 - i), f" {label}\n {val:.3f}ms",
                 color=colour, fontsize=7.5, va="top", fontweight="bold")
+        i += 0.05
 
     _style(ax,
            title="Distribution of Run Times",
